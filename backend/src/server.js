@@ -1,6 +1,8 @@
 import express from "express";
-import cors from "cors"
+import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import notesRoutes from "./routes/notesRoutes.js";
 import { connectDB } from "./config/db.js";
@@ -11,24 +13,32 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+// ESM-safe __dirname pointing to backend/src
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-//middleware
-app.use(cors({
-  origin:"http://localhost:5173",
-}))
-app.use(express.json()); //this middleware will parse JSON bodies: req.body
+// middleware
+if (process.env.NODE_ENV !== "production") {
+  app.use(cors({ origin: "http://localhost:5173" }));
+}
+app.use(express.json());
 app.use(rateLimiter);
 
-//our simple custom middleware
-// app.use((req, res, next) =>{
-//   console.log(`Req method is ${req.method} & Req URL is ${req.url}`)
-//   next();
-// });
-
+// routes
 app.use("/api/notes", notesRoutes);
 
+// serve frontend in production
+if (process.env.NODE_ENV === "production") {
+  // server.js is in backend/src, so dist is ../../frontend/dist
+  const distPath = path.join(__dirname, "../../frontend/dist");
+  app.use(express.static(distPath));
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+}
+
 connectDB().then(() => {
-app.listen(PORT, () => {
-  console.log(`Server started on PORT: ${PORT}`);
+  app.listen(PORT, () => {
+    console.log(`Server started on PORT: ${PORT}`);
+  });
 });
-})
